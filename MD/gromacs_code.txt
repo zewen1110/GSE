@@ -1,0 +1,74 @@
+
+gmx pdb2gmx -f protein.pdb -o protein_processed.gro -ignh
+perl sort_mol2_bonds.pl unk.mol2 unk_fix.mol2
+python cgenff_charmm2gmx_py3_nx2.py UNK unk_fix.mol2 unk.str charmm36-jul2021.ff
+gmx editconf -f unk_ini.pdb -o unk.gro
+
+; Include ligand topology
+#include "unk.itp"
+
+; Include ligand parameters
+#include "unk.prm"
+
+gmx editconf -f complex.gro -o newbox.gro -bt dodecahedron -d 1.0
+gmx solvate -cp newbox.gro -cs spc216.gro -p topol.top -o solv.gro
+gmx grompp -f ions.mdp -c solv.gro -p topol.top -o ions.tpr
+gmx genion -s ions.tpr -o solv_ions.gro -p topol.top -pname SOD -nname CLA -neutral
+gmx grompp -f em.mdp -c solv_ions.gro -p topol.top -o em.tpr
+gmx mdrun -v -deffnm em
+gmx make_ndx -f unk.gro -o index_unk.ndx
+...
+ > 0 & ! a H*
+ > q
+gmx genrestr -f unk.gro -n index_unk.ndx -o posre_unk.itp -fc 1000 1000 1000
+3
+
+; Ligand position restraints
+#ifdef POSRES
+#include "posre_unk.itp"
+#endif
+
+gmx make_ndx -f em.gro -o index.ndx
+1 | 13
+14 | 15
+q
+
+gmx grompp -f nvt.mdp -c em.gro -r em.gro -p topol.top -n index.ndx -o nvt.tpr
+gmx mdrun -v -deffnm nvt
+gmx grompp -f npt.mdp -c nvt.gro -t nvt.cpt -r nvt.gro -p topol.top -n index.ndx -o npt.tpr
+gmx mdrun -v -deffnm npt
+gmx grompp -f md.mdp -c npt.gro -t npt.cpt -p topol.top -n index.ndx -o md_0_100.tpr
+gmx mdrun -deffnm md_0_100
+
+#对轨迹进行周期性矫正
+gmx trjconv -s md_0_100.tpr -f md_0_100.xtc -o md_0_100_nojump.xtc -pbc nojump -ur compact
+#导出rmsd数据
+gmx rms -s md_0_100.tpr -f md_0_100_nojump.xtc -o rmsd.xvg -tu ns
+#导出gyrate
+gmx gyrate -s md_0_100.tpr -f md_0_100_noPBC.xtc -o gyrate.xvg
+#氢键
+gmx hbond -f md_0_100_noPBC.xtc -s md_0_100.tpr -num hbond_num.xvg -ang hbond_ang.xvg -life hbond_life.xvg -dist hb
+#绘制自由能形貌图
+#sham.xvg为回旋半径和RMSD的数据文件的组合，第一列为时间，第二列第三列为相应时间下的回旋半径和RMSD数据
+gmx sham -f sham.xvg -ls FEL_sham.xpm -b 8500 -tsham 310 -nlevels 100
+#利用DuIvyTools绘图
+dit xpm_show -f FEL_sham.xpm -3d -o FEL_sham.pdf
+#rmsf
+gmx rmsf -s md_0_100.tpr -f md_0_100_nojump.xtc -o fws-rmsf.xvg -ox fws-avg.pdb -res -oq fws-bfac.pdb
+#快照
+gmx trjconv -s md_0_100.tpr -f md_0_100_nojump.xtc -o start.pdb -dump 0
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

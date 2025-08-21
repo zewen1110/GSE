@@ -1,0 +1,68 @@
+需要的文件  cgenff_charmm2gmx.py
+sort_mol2_bonds.pl
+ions.mdp
+em.mdp
+nvt.mdp
+根据网站的流程，将蛋白配体分别命名为3HTB_clean.pdb  jz4.pdb （直接用DS生成这两个文件就可以，最好clean protein））
+
+gmx pdb2gmx -f 3HTB_clean.pdb -o 3HTB_processed.gro -ter  (-ter是交互式的选择补全末端，可以去掉，让GMX自动补全，另外可能生成多个文件，都需要保留，一个文件一个蛋白链)
+
+
+注意记下来 多少个电子 Total charge 19.000 e   用于平衡电子  其实不计也可以，会自动进行平衡
+
+
+错误解决：
+Fatal error:
+Atom HG in residue SER 3 was not found in rtp entry SER with 11 atoms
+while sorting atoms.
+
+For a hydrogen, this can be a different protonation state, or it
+might have had a different number in the PDB file and was rebuilt
+(it might for instance have been H3, and we only expected H1 & H2).
+Note that hydrogens might have been added to the entry for the N-terminus.
+Remove this hydrogen or choose a different protonation state to solve it.
+Option -ignh will ignore all hydrogens in the input.
+
+某些H原子的命名方式和GMX 力场文件夹里的rtp文件对应不上 ， 最最后加上 -ignh 忽略所有H原子，让GMX自动补全
+
+Fatal error:
+Atom OCT1 in residue PRO 299 was not found in rtp entry PRO with 15 atoms
+while sorting atoms.
+
+
+找到对应蛋白PDB中的对应位置  RPO 299， OCT1 删除掉即可， 这个原子在力场中没有对应的原子类型，或者能够辨别是什么原子的话，修改为力场中的标准名称
+
+
+加H采用pymol  ， 右侧A ，氢 ADD，导出为mol2
+直接打开在文本中修改配体文件，将UNK修改为JZ4，删掉第一行 # created with PyMOL 2.5.0”
+
+账号：zewen1110@bucm.edu.cn
+密码：XY0518520wzw...
+
+把环境切换到 myenv    
+conda env list
+ conda activate myenv
+
+python cgenff_charmm2gmx.py JZ4 jz4_fix.mol2 jz4.str charmm36-jul2022.ff
+gmx editconf -f jz4_ini.pdb -o jz4.gro
+
+如果转换失败，可以重新去网站生成一下str文件？
+
+complex_1 注意，要删掉JZ4的表头，只保留 原子信息  最后两行的数值要变成一行 0 。000 啥的
+直接复制周围的include，简单修改，添加信息
+
+gmx editconf -f complex_1.gro -o newbox.gro -bt dodecahedron -d 1.0   这一行代码之后有一行代码，没有在代码框里  注意不要遗漏
+
+如果报错，加上 -maxwarn -1 (1是报错个数)
+
+nsteps                  = 5000000   ; 2 * 50000000 = 100000 ps (100 ns)  修改50000 这个数字，决定运行多久
+
+
+
+
+
+
+
+
+
+
